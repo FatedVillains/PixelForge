@@ -13,8 +13,13 @@ function onUnhandled(e: PromiseRejectionEvent) {
   const reason = e.reason instanceof Error ? e.reason.message : String(e.reason)
   push('error', `发生未预期的错误：${reason}`)
 }
+function onWindowError(e: ErrorEvent) {
+  push('error', `脚本错误：${e.message}`)
+}
 onMounted(() => window.addEventListener('unhandledrejection', onUnhandled))
 onUnmounted(() => window.removeEventListener('unhandledrejection', onUnhandled))
+onMounted(() => window.addEventListener('error', onWindowError))
+onUnmounted(() => window.removeEventListener('error', onWindowError))
 </script>
 
 <template>

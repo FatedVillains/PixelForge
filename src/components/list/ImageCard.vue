@@ -2,7 +2,7 @@
 import type { AssetStatus, ImageAsset } from '../../core/types'
 import { formatBytes } from '../../utils/format'
 
-defineProps<{ asset: ImageAsset; active: boolean }>()
+defineProps<{ asset: ImageAsset; active: boolean; disabled?: boolean }>()
 defineEmits<{ select: []; remove: [] }>()
 
 const statusMeta: Record<AssetStatus, { label: string; cls: string }> = {
@@ -44,7 +44,8 @@ const statusMeta: Record<AssetStatus, { label: string; cls: string }> = {
       {{ statusMeta[asset.status].label }}
     </span>
     <button
-      class="absolute right-2 bottom-2 hidden h-5 w-5 items-center justify-center rounded-full text-slate-400 group-hover:flex hover:bg-red-50 hover:text-red-500"
+      class="absolute right-2 bottom-2 hidden h-5 w-5 items-center justify-center rounded-full text-slate-400 group-hover:flex hover:bg-red-50 hover:text-red-500 disabled:pointer-events-none disabled:opacity-50"
+      :disabled="disabled"
       title="删除"
       @click.stop="$emit('remove')"
     >

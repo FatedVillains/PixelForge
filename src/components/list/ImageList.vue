@@ -12,6 +12,7 @@ const images = useImagesStore()
       :key="asset.id"
       :asset="asset"
       :active="asset.id === images.selectedId"
+      :disabled="images.batch.active"
       @select="images.selectedId = asset.id"
       @remove="images.remove(asset.id)"
     />

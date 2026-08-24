@@ -54,6 +54,7 @@ usePaste(handleFiles)
 
 const addInputRef = ref<HTMLInputElement>()
 function addMore() {
+  if (!canEdit.value) return
   addInputRef.value?.click()
 }
 function onAddChange(e: Event) {
@@ -63,7 +64,7 @@ function onAddChange(e: Event) {
 }
 
 function clearAll() {
-  if (images.assets.length === 0) return
+  if (images.assets.length === 0 || !canEdit.value) return
   images.clearAll()
   push('info', '已清空全部图片')
 }
@@ -88,6 +89,7 @@ function getProcessor(): ImageProcessor {
 }
 
 const busy = computed(() => images.batch.active)
+const canEdit = computed(() => !busy.value)
 
 function suffixKind(): 'none' | 'compressed' | 'dimensions' {
   if (!settings.autoSuffix) return 'none'
@@ -185,7 +187,7 @@ function closeOverlay() {
       <aside class="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-2">
         <div class="mb-2 flex gap-2">
           <BaseButton variant="ghost" class="flex-1 !px-2 text-xs" @click="addMore">＋ 添加图片</BaseButton>
-          <BaseButton variant="danger" class="!px-2 text-xs" @click="clearAll">清空</BaseButton>
+          <BaseButton variant="danger" class="!px-2 text-xs" :disabled="!canEdit" @click="clearAll">清空</BaseButton>
           <input
             ref="addInputRef"
             type="file"
@@ -236,7 +238,12 @@ function closeOverlay() {
             {{ busy ? '处理中…' : `开始处理（${images.assets.length} 张）` }}
           </BaseButton>
           <div v-if="selected && selected.status === 'done'" class="flex gap-2">
-            <BaseButton variant="ghost" class="flex-1 !px-2 text-xs" @click="downloadSelected">
+            <BaseButton
+              variant="ghost"
+              class="flex-1 !px-2 text-xs"
+              :disabled="busy"
+              @click="downloadSelected"
+            >
               下载当前
             </BaseButton>
           </div>
@@ -244,6 +251,7 @@ function closeOverlay() {
             v-if="doneAssets.length > 1"
             variant="ghost"
             class="w-full !px-2 text-xs"
+            :disabled="busy"
             @click="downloadZip"
           >
             下载全部 ZIP（{{ doneAssets.length }} 张）
