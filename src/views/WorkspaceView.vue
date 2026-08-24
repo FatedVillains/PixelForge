@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue'
 import ImageList from '../components/list/ImageList.vue'
+import SettingsPanel from '../components/settings/SettingsPanel.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import { useFileImport } from '../composables/useFileImport'
 import { usePaste } from '../composables/usePaste'
@@ -120,9 +121,9 @@ const selectedPreviewSrc = computed(() => images.selected?.resultUrl || previewU
         <!-- 参数区占位：Task 12 替换 -->
       </section>
 
-      <!-- 右栏：参数面板占位 -->
-      <aside class="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-400">
-        参数面板（Task 12）
+      <!-- 右栏：参数面板 -->
+      <aside class="flex min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+        <SettingsPanel />
       </aside>
     </main>
 
