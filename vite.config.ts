@@ -5,7 +5,8 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
-  worker: { format: 'es' },
+  // iife：内联 Worker（?worker&inline）以 blob 加载，经典脚本兼容性最好
+  worker: { format: 'iife' },
   test: {
     environment: 'node',
     globals: false,

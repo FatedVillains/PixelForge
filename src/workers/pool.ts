@@ -1,3 +1,4 @@
+import ProcessWorker from './process.worker?worker&inline'
 import type { ProcessOptions, ProcessResult, WorkerRequest, WorkerResponse } from '../core/types'
 
 export interface ImageProcessor {
@@ -37,9 +38,7 @@ export class WorkerPool implements ImageProcessor {
   }
 
   private spawn(): Worker {
-    const worker = new Worker(new URL('./process.worker.ts', import.meta.url), {
-      type: 'module',
-    })
+    const worker = new ProcessWorker()
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => this.handle(worker, e.data)
     worker.onerror = () => this.failWorker(worker, new Error('处理线程异常'))
     worker.onmessageerror = () => this.failWorker(worker, new Error('线程通信失败'))
