@@ -57,7 +57,7 @@ const quickActions = [
   <div class="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
     <header class="flex items-center justify-between py-5">
       <div class="text-lg font-bold tracking-tight">
-        像素匠 <span class="text-brand-600">PixelForge</span>
+        小王修图 <span class="text-brand-600">PixelForge</span>
       </div>
       <button class="text-sm text-slate-500 hover:text-slate-800" @click="aboutOpen = true">
         关于

@@ -1,5 +1,5 @@
 export const BRAND = {
-  name: '像素匠 PixelForge',
+  name: '小王修图 PixelForge',
   shortName: 'PixelForge',
   subtitle: '图片压缩 · 尺寸调整 · 像素修改 · 清晰度优化',
   heroTitle: '图片压缩与处理工具',
@@ -8,7 +8,7 @@ export const BRAND = {
   privacyNote: '🔒 图片默认在您的设备本地处理，不上传服务器',
   formatsLine: '支持 JPG / JPEG · PNG · WEBP · BMP',
   about: {
-    title: '关于 像素匠 PixelForge',
+    title: '关于 小王修图 PixelForge',
     body: '本地图片压缩与处理工具。所有处理均在您的浏览器中完成，图片不会上传到任何服务器。',
   },
 } as const

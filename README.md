@@ -1,4 +1,4 @@
-# 像素匠 PixelForge
+# 小王修图 PixelForge
 
 > 让每一张图片，都刚刚好。
 
