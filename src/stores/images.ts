@@ -33,6 +33,9 @@ export const useImagesStore = defineStore('images', {
     selected(state): ImageAsset | null {
       return state.assets.find((a) => a.id === state.selectedId) ?? null
     },
+    hasAssets(state): boolean {
+      return state.assets.length > 0
+    },
   },
   actions: {
     addAsset(input: {
