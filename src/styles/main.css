@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f3f2ff;
+  --color-brand-100: #e9e7ff;
+  --color-brand-200: #d5d1ff;
+  --color-brand-300: #b7b0ff;
+  --color-brand-400: #9585fb;
+  --color-brand-500: #7a5ff5;
+  --color-brand-600: #6a3fe8;
+  --color-brand-700: #5a30cd;
+  --color-brand-800: #4a2aa5;
+  --color-brand-900: #3f2a82;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
