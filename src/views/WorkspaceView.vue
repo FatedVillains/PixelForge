@@ -18,7 +18,7 @@ import type { ImageAsset, ProcessOptions } from '../core/types'
 import { ACCEPTED_INPUT_TYPES } from '../core/sniff'
 import ProgressOverlay from '../components/batch/ProgressOverlay.vue'
 import ResultStats from '../components/results/ResultStats.vue'
-import CompareViewerStub from './CompareViewerStub.vue'
+import CompareViewer from '../components/preview/CompareViewer.vue'
 
 defineEmits<{ backHome: [] }>()
 
@@ -202,7 +202,7 @@ function closeOverlay() {
       <!-- 中栏：预览 -->
       <section class="flex min-h-0 flex-col gap-3 overflow-y-auto">
         <template v-if="selected">
-          <CompareViewerStub
+          <CompareViewer
             v-if="selected.result"
             :original="selected.file"
             :result="selected.result.blob"
