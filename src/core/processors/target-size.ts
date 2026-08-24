@@ -17,7 +17,8 @@ export async function solveTargetSize(
   probe: EncodeProbe,
   opts: TargetSolveOptions = {},
 ): Promise<TargetSolveResult> {
-  const minScale = opts.minScale ?? 0.1
+  const minScale =
+    opts.minScale !== undefined && opts.minScale > 0 ? opts.minScale : 0.1
   const maxEncodes = opts.maxEncodes ?? 48
 
   const cache = new Map<string, number>()
@@ -59,7 +60,10 @@ export async function solveTargetSize(
         return { quality: q, scale, fitsTarget: true, encodes }
       }
       bestEffort = { quality: 1, scale, fitsTarget: false, encodes }
-    } catch {
+    } catch (err) {
+      if (!(err instanceof Error && err.message === 'encode-budget-exhausted')) {
+        throw err
+      }
       break // 编码预算耗尽
     }
     scale = Number((scale * 0.85).toFixed(3))

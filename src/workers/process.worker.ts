@@ -10,6 +10,7 @@ function classifyError(err: unknown): ProcessErrorCode {
   const msg = err instanceof Error ? err.message : String(err)
   if (/解码/.test(msg)) return 'decode'
   if (/内存|allocation|MemoryError/i.test(msg)) return 'memory'
+  if (/encode-budget/i.test(msg)) return 'target-unreachable'
   if (/PNG|目标大小/.test(msg)) return 'target-unreachable'
   if (/编码/.test(msg)) return 'encode'
   return 'unknown'

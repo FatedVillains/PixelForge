@@ -39,6 +39,11 @@ describe('solveTargetSize', () => {
     expect(r.quality).toBe(1)
   })
 
+  it('rethrows probe failures instead of reporting best effort', async () => {
+    const boom = () => Promise.reject(new Error('canvas exploded'))
+    await expect(solveTargetSize(1000, boom)).rejects.toThrow('canvas exploded')
+  })
+
   it('caches duplicate probes', async () => {
     const spy = vi.fn((q: number, _s: number) => Promise.resolve(q * 100))
     await solveTargetSize(50_000, spy)
