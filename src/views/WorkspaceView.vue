@@ -7,7 +7,18 @@ import { useFileImport } from '../composables/useFileImport'
 import { usePaste } from '../composables/usePaste'
 import { useToast } from '../composables/useToast'
 import { useImagesStore } from '../stores/images'
+import { useSettingsStore, buildProcessOptions } from '../stores/settings'
+import {
+  createProcessor,
+  defaultPoolSize,
+  type ImageProcessor,
+} from '../workers/pool'
+import { downloadBlob, downloadResultsZip, resultFileName } from '../utils/download'
+import type { ImageAsset, ProcessOptions } from '../core/types'
 import { ACCEPTED_INPUT_TYPES } from '../core/sniff'
+import ProgressOverlay from '../components/batch/ProgressOverlay.vue'
+import ResultStats from '../components/results/ResultStats.vue'
+import CompareViewerStub from './CompareViewerStub.vue'
 
 defineEmits<{ backHome: [] }>()
 
@@ -67,7 +78,91 @@ watchEffect((onCleanup) => {
   onCleanup(() => URL.revokeObjectURL(url))
 })
 
-const selectedPreviewSrc = computed(() => images.selected?.resultUrl || previewUrl.value)
+const settings = useSettingsStore()
+const selected = computed(() => images.selected)
+
+let processor: ImageProcessor | null = null
+function getProcessor(): ImageProcessor {
+  processor ??= createProcessor()
+  return processor
+}
+
+const busy = computed(() => images.batch.active)
+
+function suffixKind(): 'none' | 'compressed' | 'dimensions' {
+  if (!settings.autoSuffix) return 'none'
+  return settings.resizeEnabled && settings.width && settings.height
+    ? 'dimensions'
+    : 'compressed'
+}
+
+async function startProcessing() {
+  if (images.assets.length === 0 || busy.value) return
+
+  /* 参数校验：任何一张无法构建参数即整体拦截 */
+  const prepared = new Map<string, ProcessOptions>()
+  for (const asset of images.assets) {
+    const options = buildProcessOptions(settings.$state, asset)
+    if (!options) {
+      push('error', '参数不完整：请检查目标大小设置或格式组合')
+      return
+    }
+    prepared.set(asset.id, options)
+  }
+
+  images.resetResults()
+  images.beginBatch(images.assets.length)
+
+  let warnedUnreachable = false
+  const waveSize = defaultPoolSize()
+  const list = images.assets.slice()
+
+  for (let i = 0; i < list.length; i += waveSize) {
+    const wave = list.slice(i, i + waveSize)
+    await Promise.all(wave.map((asset) => processOne(asset)))
+  }
+
+  images.finishBatch()
+  push('success', `处理完成：成功 ${images.batch.successCount} 张${images.batch.failedCount ? `，失败 ${images.batch.failedCount} 张` : ''}`)
+
+  async function processOne(asset: ImageAsset) {
+    images.setStatus(asset.id, 'processing')
+    images.advanceBatch(asset.name)
+    try {
+      const result = await getProcessor().process(asset.file, prepared.get(asset.id)!)
+      images.setResult(asset.id, result)
+      images.completeItem(true)
+      if (!result.fitsTarget && !warnedUnreachable) {
+        warnedUnreachable = true
+        push('info', '部分图片即使最低质量也无法达到目标大小，已输出尽可能小的结果')
+      }
+    } catch (err) {
+      images.setStatus(asset.id, 'failed', err instanceof Error ? err.message : '处理失败')
+      images.completeItem(false)
+    }
+  }
+}
+
+const doneAssets = computed(() => images.assets.filter((a) => a.status === 'done' && a.result))
+
+function downloadSelected() {
+  const asset = images.selected
+  if (!asset?.result) return
+  downloadBlob(asset.result.blob, resultFileName(asset.name, asset.result, suffixKind()))
+}
+
+async function downloadZip() {
+  if (doneAssets.value.length === 0) return
+  await downloadResultsZip(
+    doneAssets.value.map(({ name, result }) => ({ assetName: name, result: result! })),
+    { suffixKind: suffixKind() },
+  )
+  push('success', `已打包 ${doneAssets.value.length} 张图片`)
+}
+
+function closeOverlay() {
+  images.resetBatch()
+}
 </script>
 
 <template>
@@ -105,25 +200,55 @@ const selectedPreviewSrc = computed(() => images.selected?.resultUrl || previewU
       </aside>
 
       <!-- 中栏：预览 -->
-      <section class="flex min-h-0 flex-col gap-3">
-        <div
-          v-if="images.selected"
-          class="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white"
-        >
-          <img :src="selectedPreviewSrc" class="max-h-full max-w-full object-contain" alt="预览" />
-        </div>
+      <section class="flex min-h-0 flex-col gap-3 overflow-y-auto">
+        <template v-if="selected">
+          <CompareViewerStub
+            v-if="selected.result"
+            :original="selected.file"
+            :result="selected.result.blob"
+            class="shrink-0"
+          />
+          <div
+            v-else
+            class="flex min-h-[240px] flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white"
+          >
+            <img :src="previewUrl" class="max-h-[60vh] object-contain" alt="原图预览" />
+          </div>
+          <ResultStats v-if="selected.status === 'done'" :asset="selected" />
+        </template>
         <div
           v-else
-          class="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400"
+          class="flex min-h-[240px] flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-sm text-slate-400"
         >
           从左侧选择一张图片查看预览
         </div>
-        <!-- 参数区占位：Task 12 替换 -->
       </section>
 
       <!-- 右栏：参数面板 -->
       <aside class="flex min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 p-3">
         <SettingsPanel />
+        <div class="sticky bottom-0 mt-3 space-y-2 bg-gradient-to-t from-slate-50 pt-2">
+          <BaseButton
+            class="w-full"
+            :disabled="images.assets.length === 0 || busy"
+            @click="startProcessing"
+          >
+            {{ busy ? '处理中…' : `开始处理（${images.assets.length} 张）` }}
+          </BaseButton>
+          <div v-if="selected && selected.status === 'done'" class="flex gap-2">
+            <BaseButton variant="ghost" class="flex-1 !px-2 text-xs" @click="downloadSelected">
+              下载当前
+            </BaseButton>
+          </div>
+          <BaseButton
+            v-if="doneAssets.length > 1"
+            variant="ghost"
+            class="w-full !px-2 text-xs"
+            @click="downloadZip"
+          >
+            下载全部 ZIP（{{ doneAssets.length }} 张）
+          </BaseButton>
+        </div>
       </aside>
     </main>
 
@@ -142,5 +267,7 @@ const selectedPreviewSrc = computed(() => images.selected?.resultUrl || previewU
         </div>
       </div>
     </Teleport>
+
+    <ProgressOverlay @download-zip="downloadZip" @close="closeOverlay" />
   </div>
 </template>
