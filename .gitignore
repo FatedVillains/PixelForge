@@ -3,3 +3,6 @@ dist/
 *.local
 .superpowers/
 fixtures/
+src-tauri/target/
+src-tauri/gen/
+app-icon.png
