@@ -2,7 +2,20 @@
 
 > 让每一张图片，都刚刚好。
 
-本地图片压缩与处理工具：图片默认在你的浏览器内处理，不上传任何服务器。
+本地图片压缩与处理工具：图片默认在你的设备上处理，不上传任何服务器。
+
+## 使用方式
+
+### 浏览器版（Web）
+
+- **开箱即用**：`pnpm dev` 启动开发服务器，或 `pnpm build` 后用任意静态服务器托管 `dist/`
+- **完全离线单文件版**：`pnpm build:single` → 直接双击 `dist-single/index.html` 即可使用，无需服务器
+
+### Windows 桌面客户端（Tauri v2）
+
+- **绿色版**：`src-tauri/target/release/xiaowangxiutu.exe`，解压即用，无需安装
+- **安装包**：`src-tauri/target/release/bundle/nsis/小王修图_*_x64-setup.exe`，双击安装，支持开始菜单/桌面快捷方式/卸载
+- 界面与功能与 Web 版完全一致，复用同一套前端代码（WebView2 渲染，Windows 10/11 自带运行时）
 
 ## 功能（v1 / P0）
 
@@ -22,15 +35,20 @@ pnpm install
 pnpm dev        # 开发服务器
 pnpm test       # Vitest 单测
 pnpm typecheck  # vue-tsc
-pnpm build      # 生产构建
+pnpm build      # 生产构建（多文件 → dist/）
+pnpm build:single   # 完全离线单文件构建（→ dist-single/）
+pnpm tauri build    # 桌面客户端构建（NSIS 安装包 + 绿色版 exe）
 node scripts/make-fixtures.mjs   # 生成 BMP 测试夹具到 fixtures/
 ```
+
+桌面客户端构建需要本机具备 Rust 工具链与 MSVC C++ 工作负载（首次构建会编译约 400 个 Rust 依赖，后续增量构建很快）。
 
 ## 架构
 
 - `src/core/` 平台无关处理核心（类型/嗅探/几何/守卫/求解器/管线），零 Vue 依赖
 - `src/workers/` Web Worker 入口与调度池（主线程回退）
-- `src/stores/` Pinia：设置与图片库状态
+- `src/stores/` 设置与图片库状态
 - `src/views/`+`src/components/` UI 层（Tailwind v4，自绘组件）
+- `src-tauri/` 桌面客户端（Tauri v2）：嵌入 `dist-single/` 单文件产物，零前端改动
 
 详细设计见 `docs/superpowers/specs/`。
