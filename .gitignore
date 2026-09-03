@@ -6,3 +6,4 @@ fixtures/
 src-tauri/target/
 src-tauri/gen/
 app-icon.png
+dist-single/
