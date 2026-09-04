@@ -1,8 +1,25 @@
 import { zipSync } from 'fflate'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 import type { ProcessResult } from '../core/types'
 import { buildOutputName, uniqueName } from './naming'
 
-export function downloadBlob(blob: Blob, filename: string): void {
+function isDesktop(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+}
+
+async function saveViaDesktop(blob: Blob, filename: string): Promise<void> {
+  const path = await save({ defaultPath: filename })
+  if (path === null) return
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  await writeFile(path, bytes)
+}
+
+export async function downloadBlob(blob: Blob, filename: string): Promise<void> {
+  if (isDesktop()) {
+    await saveViaDesktop(blob, filename)
+    return
+  }
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -39,7 +56,10 @@ export async function downloadResultsZip(
     files[name] = bytes
   }
   const zipped = zipSync(files, { level: 0 })
-  downloadBlob(new Blob([zipped as BlobPart], { type: 'application/zip' }), 'pixel-forge-result.zip')
+  await downloadBlob(
+    new Blob([zipped as BlobPart], { type: 'application/zip' }),
+    'pixel-forge-result.zip',
+  )
 }
 
 export function resultFileName(

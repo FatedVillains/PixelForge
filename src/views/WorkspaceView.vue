@@ -147,19 +147,28 @@ async function startProcessing() {
 
 const doneAssets = computed(() => images.assets.filter((a) => a.status === 'done' && a.result))
 
-function downloadSelected() {
+async function downloadSelected() {
   const asset = images.selected
   if (!asset?.result) return
-  downloadBlob(asset.result.blob, resultFileName(asset.name, asset.result, suffixKind()))
+  try {
+    await downloadBlob(asset.result.blob, resultFileName(asset.name, asset.result, suffixKind()))
+    push('success', '已保存')
+  } catch (err) {
+    push('error', `保存失败：${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 async function downloadZip() {
   if (doneAssets.value.length === 0) return
-  await downloadResultsZip(
-    doneAssets.value.map(({ name, result }) => ({ assetName: name, result: result! })),
-    { suffixKind: suffixKind() },
-  )
-  push('success', `已打包 ${doneAssets.value.length} 张图片`)
+  try {
+    await downloadResultsZip(
+      doneAssets.value.map(({ name, result }) => ({ assetName: name, result: result! })),
+      { suffixKind: suffixKind() },
+    )
+    push('success', `已打包 ${doneAssets.value.length} 张图片`)
+  } catch (err) {
+    push('error', `打包下载失败：${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 function closeOverlay() {
