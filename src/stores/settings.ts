@@ -13,6 +13,12 @@ export interface SettingsState {
   height: number | null
   keepAspectRatio: boolean
   autoSuffix: boolean
+  /**
+   * 任何影响输出结果的设置变更都会自增。
+   * 工作台 watch 它来决定何时作废已处理的结果——否则用户改了格式后
+   * 下载到的仍是旧格式文件（文件名和内容都来自处理那一刻的 result.format）。
+   */
+  revision: number
 }
 
 export const TARGET_PRESETS: Array<{ label: string; kb: number }> = [
@@ -53,14 +59,50 @@ export const useSettingsStore = defineStore('settings', {
     height: null,
     keepAspectRatio: true,
     autoSuffix: true,
+    revision: 0,
   }),
   actions: {
+    /** 作废信号：设置变了，已有结果不再代表当前参数 */
+    touch() {
+      this.revision += 1
+    },
     setFormat(format: OutputFormat) {
       this.outputFormat = format
       if (format === 'png' && this.mode === 'targetSize') this.mode = 'quality'
+      this.touch()
     },
     setMode(mode: CompressMode) {
       this.mode = mode
+      this.touch()
+    },
+    setQuality(quality: number) {
+      this.quality = quality
+      this.touch()
+    },
+    setTargetPreset(kb: number) {
+      this.targetPresetKb = kb
+      this.customTargetKb = null
+      this.touch()
+    },
+    setCustomTarget(kb: number | null) {
+      this.customTargetKb = kb
+      this.touch()
+    },
+    setResizeEnabled(on: boolean) {
+      this.resizeEnabled = on
+      this.touch()
+    },
+    setWidth(w: number | null) {
+      this.width = w
+      this.touch()
+    },
+    setHeight(h: number | null) {
+      this.height = h
+      this.touch()
+    },
+    setKeepAspectRatio(v: boolean) {
+      this.keepAspectRatio = v
+      this.touch()
     },
   },
 })

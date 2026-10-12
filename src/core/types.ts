@@ -24,6 +24,8 @@ export interface ProcessResult {
   format: OutputFormat
   iterations: number
   fitsTarget: boolean
+  /** 目标大小搜索因预算（次数/时间）耗尽而提前收敛 */
+  budgetExhausted?: boolean
 }
 
 export type AssetStatus = 'pending' | 'processing' | 'done' | 'failed'

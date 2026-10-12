@@ -25,6 +25,46 @@ describe('useSettingsStore', () => {
     s.setFormat('png')
     expect(s.mode).toBe('quality')
   })
+
+  it('bumps revision when format changes', () => {
+    const s = useSettingsStore()
+    const before = s.revision
+    s.setFormat('png')
+    expect(s.revision).toBeGreaterThan(before)
+  })
+
+  it('bumps revision when mode changes', () => {
+    const s = useSettingsStore()
+    const before = s.revision
+    s.setMode('targetSize')
+    expect(s.revision).toBeGreaterThan(before)
+  })
+
+  it('bumps revision once per setFormat call', () => {
+    const s = useSettingsStore()
+    const before = s.revision
+    s.setFormat('png')
+    s.setFormat('webp')
+    expect(s.revision).toBe(before + 2)
+  })
+
+  it('touch() bumps revision without changing settings', () => {
+    const s = useSettingsStore()
+    const before = s.revision
+    const format = s.outputFormat
+    s.touch()
+    expect(s.revision).toBe(before + 1)
+    expect(s.outputFormat).toBe(format)
+  })
+
+  it('does not bump revision on read-only preset lookups', () => {
+    const s = useSettingsStore()
+    const before = s.revision
+    void TARGET_PRESETS
+    void QUICK_SIZES
+    void ID_PHOTO_PRESETS
+    expect(s.revision).toBe(before)
+  })
 })
 
 describe('buildProcessOptions', () => {
@@ -39,6 +79,7 @@ describe('buildProcessOptions', () => {
     height: null,
     keepAspectRatio: true,
     autoSuffix: true,
+    revision: 0,
   }
 
   it('quality mode maps quality', () => {

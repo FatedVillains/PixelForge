@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue'
+import { computed, onUnmounted, ref, watch, watchEffect } from 'vue'
 import ImageList from '../components/list/ImageList.vue'
 import SettingsPanel from '../components/settings/SettingsPanel.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import { useFileImport } from '../composables/useFileImport'
 import { usePaste } from '../composables/usePaste'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useToast } from '../composables/useToast'
 import { useImagesStore } from '../stores/images'
 import { useSettingsStore, buildProcessOptions } from '../stores/settings'
+import { checkOutputGuard } from '../core/guard'
 import {
   createProcessor,
   defaultPoolSize,
   type ImageProcessor,
 } from '../workers/pool'
-import { downloadBlob, downloadResultsZip, resultFileName } from '../utils/download'
+import { downloadBlob, downloadResultsZip, resultFileName, shouldUseZip } from '../utils/download'
 import type { ImageAsset, ProcessOptions } from '../core/types'
 import { ACCEPTED_INPUT_TYPES } from '../core/sniff'
 import ProgressOverlay from '../components/batch/ProgressOverlay.vue'
@@ -26,23 +29,8 @@ const images = useImagesStore()
 const { push } = useToast()
 const { importFiles } = useFileImport()
 
-const confirmVisible = ref(false)
-const confirmReason = ref('')
-let confirmResolve: ((ok: boolean) => void) | null = null
-
-function askConfirm(reason: string): Promise<boolean> {
-  confirmReason.value = reason
-  confirmVisible.value = true
-  return new Promise((resolve) => {
-    confirmResolve = resolve
-  })
-}
-
-function settleConfirm(ok: boolean) {
-  confirmVisible.value = false
-  confirmResolve?.(ok)
-  confirmResolve = null
-}
+const { visible: confirmVisible, reason: confirmReason, ask: askConfirm, settle: settleConfirm } =
+  useConfirmDialog()
 
 async function handleFiles(files: File[]) {
   await importFiles(files, {
@@ -88,6 +76,12 @@ function getProcessor(): ImageProcessor {
   return processor
 }
 
+/* 组件卸载（切回首页）必须终止 Worker，否则线程与其占用的内存会一直留着 */
+onUnmounted(() => {
+  processor?.dispose()
+  processor = null
+})
+
 const busy = computed(() => images.batch.active)
 const canEdit = computed(() => !busy.value)
 
@@ -101,12 +95,18 @@ function suffixKind(): 'none' | 'compressed' | 'dimensions' {
 async function startProcessing() {
   if (images.assets.length === 0 || busy.value) return
 
-  /* 参数校验：任何一张无法构建参数即整体拦截 */
+  /* 参数校验：任何一张无法构建参数或输出超限即整体拦截 */
   const prepared = new Map<string, ProcessOptions>()
   for (const asset of images.assets) {
     const options = buildProcessOptions(settings.$state, asset)
     if (!options) {
       push('error', '参数不完整：请检查目标大小设置或格式组合')
+      return
+    }
+    const out = options.resize ?? { width: asset.width, height: asset.height }
+    const guard = checkOutputGuard(out.width, out.height)
+    if (guard.oversized) {
+      push('error', `${asset.name}：${guard.reason}`)
       return
     }
     prepared.set(asset.id, options)
@@ -136,7 +136,12 @@ async function startProcessing() {
       images.completeItem(true)
       if (!result.fitsTarget && !warnedUnreachable) {
         warnedUnreachable = true
-        push('info', '部分图片即使最低质量也无法达到目标大小，已输出尽可能小的结果')
+        push(
+          'info',
+          result.budgetExhausted
+            ? '目标大小搜索达到预算上限，已输出当前最优结果'
+            : '部分图片即使最低质量也无法达到目标大小，已输出尽可能小的结果',
+        )
       }
     } catch (err) {
       images.setStatus(asset.id, 'failed', err instanceof Error ? err.message : '处理失败')
@@ -146,6 +151,23 @@ async function startProcessing() {
 }
 
 const doneAssets = computed(() => images.assets.filter((a) => a.status === 'done' && a.result))
+
+/* 只有一张时直接给文件，多张才打包；与放大页共用 shouldUseZip 规则 */
+const useZip = computed(() => shouldUseZip(doneAssets.value))
+
+/**
+ * 参数一改，已有结果就不再代表当前设置——立即作废。
+ * 否则用户把格式从 JPG 改成 PNG 后下载，拿到的仍是旧的那批 JPEG
+ * （文件名与内容都来自处理那一刻的 result.format）。
+ * 处理批次进行中不重置，避免与正在跑的任务互相覆盖状态。
+ */
+watch(
+  () => settings.revision,
+  () => {
+    if (images.batch.active) return
+    images.resetResults()
+  },
+)
 
 async function downloadSelected() {
   const asset = images.selected
@@ -253,11 +275,11 @@ function closeOverlay() {
               :disabled="busy"
               @click="downloadSelected"
             >
-              下载当前
+              下载图片
             </BaseButton>
           </div>
           <BaseButton
-            v-if="doneAssets.length > 1"
+            v-if="useZip"
             variant="ghost"
             class="w-full !px-2 text-xs"
             :disabled="busy"
@@ -270,21 +292,19 @@ function closeOverlay() {
     </main>
 
     <!-- 超大图确认框 -->
-    <Teleport to="body">
-      <div v-if="confirmVisible" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-        <div class="relative z-10 w-[min(92vw,420px)] rounded-2xl bg-white p-6 shadow-xl">
-          <h3 class="mb-2 text-base font-semibold">检测到超大图片</h3>
-          <p class="text-sm text-slate-600">{{ confirmReason }}</p>
-          <p class="mt-1 text-sm text-slate-500">继续处理可能占用较多内存。</p>
-          <div class="mt-5 flex justify-end gap-2">
-            <BaseButton variant="ghost" @click="settleConfirm(false)">取消</BaseButton>
-            <BaseButton @click="settleConfirm(true)">继续处理</BaseButton>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <ConfirmDialog
+      :open="confirmVisible"
+      title="检测到超大图片"
+      :reason="confirmReason"
+      hint="继续处理可能占用较多内存。"
+      confirm-text="继续处理"
+      @settle="settleConfirm"
+    />
 
-    <ProgressOverlay @download-zip="downloadZip" @close="closeOverlay" />
+    <ProgressOverlay
+      @download-zip="downloadZip"
+      @download-single="closeOverlay"
+      @close="closeOverlay"
+    />
   </div>
 </template>

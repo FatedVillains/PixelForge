@@ -50,4 +50,27 @@ describe('solveTargetSize', () => {
     const calls = spy.mock.calls.map((c) => `${c[0]}@${c[1]}`)
     expect(new Set(calls).size).toBe(calls.length)
   })
+
+  it('stops on the time budget and flags budgetExhausted', async () => {
+    const slow = (_q: number, _s: number) =>
+      new Promise<number>((r) => setTimeout(() => r(Number.MAX_SAFE_INTEGER), 5))
+    const r = await solveTargetSize(100, slow, { maxDurationMs: 1 })
+    expect(r.fitsTarget).toBe(false)
+    expect(r.budgetExhausted).toBe(true)
+  })
+
+  it('reports probe progress', async () => {
+    const seen: number[] = []
+    const probe = (q: number, _s: number) => Promise.resolve(q * 100)
+    const r = await solveTargetSize(50_000, probe, {
+      onProbe: (encodes) => seen.push(encodes),
+    })
+    expect(seen.length).toBe(r.encodes)
+    expect(seen[seen.length - 1]).toBe(r.encodes)
+  })
+
+  it('is not budget-exhausted on a clean solve', async () => {
+    const r = await solveTargetSize(50_000, (q, s) => Promise.resolve(Math.round(q * 1000 * s * s)))
+    expect(r.budgetExhausted).toBe(false)
+  })
 })

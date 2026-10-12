@@ -12,6 +12,8 @@ import {
   useSettingsStore,
 } from '../../stores/settings'
 import { useImagesStore } from '../../stores/images'
+import { computeTargetDimensions } from '../../core/processors/resize'
+import { checkOutputGuard } from '../../core/guard'
 
 const settings = useSettingsStore()
 const images = useImagesStore()
@@ -32,30 +34,51 @@ const targetDisabled = computed(() => settings.outputFormat === 'png')
 const selected = computed(() => images.selected)
 
 function onWidthInput(w: number | null) {
-  settings.width = w
+  settings.setWidth(w)
   if (settings.keepAspectRatio && w && selected.value && selected.value.width > 0) {
-    settings.height = Math.max(1, Math.round((w * selected.value.height) / selected.value.width))
+    settings.setHeight(Math.max(1, Math.round((w * selected.value.height) / selected.value.width)))
   }
 }
 
 function onHeightInput(h: number | null) {
-  settings.height = h
+  settings.setHeight(h)
   if (settings.keepAspectRatio && h && selected.value && selected.value.height > 0) {
-    settings.width = Math.max(1, Math.round((h * selected.value.width) / selected.value.height))
+    settings.setWidth(Math.max(1, Math.round((h * selected.value.width) / selected.value.height)))
   }
 }
 
 function toggleKeepAspect(v: boolean) {
-  settings.keepAspectRatio = v
+  settings.setKeepAspectRatio(v)
   if (v) onWidthInput(settings.width)
 }
 
 function applyPreset(preset: { width: number; height: number }) {
-  settings.resizeEnabled = true
-  settings.keepAspectRatio = false
-  settings.width = preset.width
-  settings.height = preset.height
+  settings.setResizeEnabled(true)
+  settings.setKeepAspectRatio(false)
+  settings.setWidth(preset.width)
+  settings.setHeight(preset.height)
 }
+
+/** 实际会输出的尺寸（已按 1..20000 夹取）与超限提示，避免用户以为设的值就是最终值 */
+const effectiveSize = computed(() => {
+  const src = selected.value ?? { width: 4032, height: 3024 }
+  return computeTargetDimensions(src, {
+    width: settings.width ?? 0,
+    height: settings.height ?? 0,
+    keepAspectRatio: settings.keepAspectRatio,
+  })
+})
+const sizeWarning = computed(() => {
+  const { width, height } = effectiveSize.value
+  const clamped =
+    (settings.width !== null && settings.width > width) ||
+    (settings.height !== null && settings.height > height)
+  if (clamped) {
+    return `目标尺寸过大，已自动收敛到 ${width}×${height}（单边上限 20000px）`
+  }
+  const guard = checkOutputGuard(width, height)
+  return guard.oversized ? guard.reason : ''
+})
 </script>
 
 <template>
@@ -96,7 +119,12 @@ function applyPreset(preset: { width: number; height: number }) {
           <span class="text-slate-600">质量</span>
           <span class="font-medium text-brand-600">{{ settings.quality }}%</span>
         </div>
-        <RangeSlider v-model="settings.quality" :min="1" :max="100" />
+        <RangeSlider
+          :model-value="settings.quality"
+          :min="1"
+          :max="100"
+          @update:model-value="settings.setQuality"
+        />
         <div class="flex justify-between text-[10px] text-slate-300">
           <span>极限压缩</span><span>高质量</span>
         </div>
@@ -114,7 +142,7 @@ function applyPreset(preset: { width: number; height: number }) {
                 : 'border-slate-200 text-slate-600 hover:bg-slate-50'
             "
             :disabled="targetDisabled"
-            @click="settings.customTargetKb = null; settings.targetPresetKb = p.kb"
+            @click="settings.setTargetPreset(p.kb)"
           >
             {{ p.label }}
           </button>
@@ -122,10 +150,11 @@ function applyPreset(preset: { width: number; height: number }) {
         <div class="flex items-center gap-2">
           <span class="shrink-0 text-xs text-slate-500">自定义 KB</span>
           <NumberField
-            v-model="settings.customTargetKb"
+            :model-value="settings.customTargetKb"
             :min="1"
             placeholder="如 800"
             :disabled="targetDisabled"
+            @update:model-value="settings.setCustomTarget"
           />
         </div>
         <p v-if="targetDisabled" class="text-xs text-red-500">
@@ -138,7 +167,10 @@ function applyPreset(preset: { width: number; height: number }) {
     <BaseCard class="space-y-3 p-4">
       <div class="flex items-center justify-between">
         <p class="text-xs font-semibold tracking-wide text-slate-400">尺寸调整</p>
-        <ToggleSwitch v-model="settings.resizeEnabled" />
+        <ToggleSwitch
+          :model-value="settings.resizeEnabled"
+          @update:model-value="settings.setResizeEnabled"
+        />
       </div>
 
       <template v-if="settings.resizeEnabled">
@@ -158,6 +190,9 @@ function applyPreset(preset: { width: number; height: number }) {
           label="保持原始比例（以宽度为准）"
           @update:model-value="toggleKeepAspect"
         />
+
+        <p class="pt-1 text-xs text-slate-400">实际输出 {{ effectiveSize.width }} × {{ effectiveSize.height }}</p>
+        <p v-if="sizeWarning" class="text-xs text-red-500">{{ sizeWarning }}</p>
 
         <p class="pt-1 text-xs text-slate-400">快捷尺寸</p>
         <div class="grid grid-cols-3 gap-1.5">

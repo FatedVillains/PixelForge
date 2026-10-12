@@ -1,4 +1,5 @@
 import type { ResizeOptions } from '../types'
+import { GUARD_MAX_OUTPUT_SIDE } from '../guard'
 
 export interface Dimensions {
   width: number
@@ -20,8 +21,9 @@ export function computeTargetDimensions(
       width = Math.round(height / ratio)
     }
   }
-  width = Math.min(Math.max(width || original.width, 1), 20000)
-  height = Math.min(Math.max(height || original.height, 1), 20000)
+  /* 硬性下限保护；超限由 checkOutputGuard 在管线入口给出明确报错 */
+  width = Math.min(Math.max(width || original.width, 1), GUARD_MAX_OUTPUT_SIDE)
+  height = Math.min(Math.max(height || original.height, 1), GUARD_MAX_OUTPUT_SIDE)
   return { width, height }
 }
 

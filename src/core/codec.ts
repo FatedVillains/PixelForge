@@ -65,6 +65,21 @@ function qualityArg(quality?: number): number | undefined {
   return quality === undefined ? undefined : Math.min(1, Math.max(0, quality / 100))
 }
 
+/**
+ * 画布编码遇到不支持的类型时会静默回退到 image/png，调用方拿到的 blob.type
+ * 因此不一定等于请求值。若不校验，管线会把请求格式当作 result.format 写出去，
+ * 最终下载到「扩展名说 png、内容却是别的格式」的文件。
+ */
+function assertEncodedAs(blob: Blob, mime: string): Blob {
+  if (blob.type !== mime) {
+    throw new Error(
+      `当前环境不支持 ${mime.replace('image/', '').toUpperCase()} 编码` +
+        `（实际输出 ${blob.type || '未知格式'}），请改用其他格式`,
+    )
+  }
+  return blob
+}
+
 export async function encodeSurface(
   canvas: SurfaceCanvas,
   format: OutputFormat,
@@ -73,11 +88,21 @@ export async function encodeSurface(
   const mime = `image/${format}`
   const q = qualityArg(quality)
   if ('convertToBlob' in canvas) {
-    return canvas.convertToBlob({ type: mime, quality: q })
+    return assertEncodedAs(await canvas.convertToBlob({ type: mime, quality: q }), mime)
   }
   return new Promise<Blob>((resolve, reject) => {
     ;(canvas as HTMLCanvasElement).toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('图片编码失败'))),
+      (b) => {
+        if (!b) {
+          reject(new Error('图片编码失败'))
+          return
+        }
+        try {
+          resolve(assertEncodedAs(b, mime))
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error(String(err)))
+        }
+      },
       mime,
       q,
     )

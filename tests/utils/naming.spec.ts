@@ -1,5 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { buildOutputName, splitFileName, uniqueName } from '../../src/utils/naming'
+import {
+  buildOutputName,
+  sanitizeBaseName,
+  splitFileName,
+  uniqueName,
+} from '../../src/utils/naming'
+
+describe('sanitizeBaseName', () => {
+  it('replaces windows-illegal characters', () => {
+    expect(sanitizeBaseName('a/b\\c:d*e?f"g<h>i|j')).toBe('a_b_c_d_e_f_g_h_i_j')
+  })
+  it('strips trailing dots and spaces', () => {
+    expect(sanitizeBaseName('photo...')).toBe('photo')
+    expect(sanitizeBaseName('photo  ')).toBe('photo')
+  })
+  it('falls back for empty input', () => {
+    expect(sanitizeBaseName('   ')).toBe('image')
+    expect(sanitizeBaseName('')).toBe('image')
+  })
+  it('escapes windows reserved names', () => {
+    expect(sanitizeBaseName('CON')).toBe('_CON')
+    expect(sanitizeBaseName('lpt1')).toBe('_lpt1')
+    expect(sanitizeBaseName('console')).toBe('console')
+  })
+  it('caps length', () => {
+    expect(sanitizeBaseName('x'.repeat(500))).toHaveLength(120)
+  })
+})
 
 describe('splitFileName', () => {
   it('splits base and ext', () => {
@@ -43,6 +70,11 @@ describe('buildOutputName', () => {
         height: 10,
       }),
     ).toBe('a_compressed.png')
+  })
+  it('sanitizes the base name from pasted files', () => {
+    expect(buildOutputName('we:ird|name.png', { ext: 'png', suffixKind: 'none' })).toBe(
+      'we_ird_name.png',
+    )
   })
 })
 

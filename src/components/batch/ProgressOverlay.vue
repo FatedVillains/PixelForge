@@ -1,15 +1,40 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useImagesStore } from '../../stores/images'
+import { useSettingsStore } from '../../stores/settings'
 import BaseButton from '../ui/BaseButton.vue'
+import { downloadBlob, resultFileName } from '../../utils/download'
 
-defineEmits<{ 'download-zip': []; close: [] }>()
+const emit = defineEmits<{ 'download-zip': []; 'download-single': []; close: [] }>()
 
 const images = useImagesStore()
+const settings = useSettingsStore()
 
 const percent = computed(() =>
   images.batch.total > 0 ? Math.round((images.batch.done / images.batch.total) * 100) : 0,
 )
+
+const doneAssets = computed(() => images.assets.filter((a) => a.status === 'done' && a.result))
+/** 只有一张时直接给文件，多张才值得打包 */
+const useZip = computed(() => doneAssets.value.length > 1)
+
+function suffixKind(): 'none' | 'compressed' | 'dimensions' {
+  if (!settings.autoSuffix) return 'none'
+  return settings.resizeEnabled && settings.width && settings.height
+    ? 'dimensions'
+    : 'compressed'
+}
+
+async function onDownloadSingle() {
+  const entry = doneAssets.value[0]
+  if (!entry?.result) return
+  try {
+    await downloadBlob(entry.result.blob, resultFileName(entry.name, entry.result, suffixKind()))
+    emit('download-single')
+  } catch {
+    /* WorkspaceView 的进度浮层已通过同一入口处理错误提示 */
+  }
+}
 </script>
 
 <template>
@@ -47,7 +72,18 @@ const percent = computed(() =>
           </p>
           <div class="mt-5 flex justify-end gap-2">
             <BaseButton variant="ghost" @click="$emit('close')">关闭</BaseButton>
-            <BaseButton :disabled="images.batch.successCount === 0" @click="$emit('download-zip')">
+            <BaseButton
+              v-if="!useZip"
+              :disabled="images.batch.successCount === 0"
+              @click="onDownloadSingle"
+            >
+              下载图片
+            </BaseButton>
+            <BaseButton
+              v-else
+              :disabled="images.batch.successCount === 0"
+              @click="$emit('download-zip')"
+            >
               下载 ZIP
             </BaseButton>
           </div>

@@ -4,34 +4,22 @@ import Dropzone from '../components/upload/Dropzone.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import AppDialog from '../components/ui/AppDialog.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import { usePaste } from '../composables/usePaste'
 import { useFileImport } from '../composables/useFileImport'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useToast } from '../composables/useToast'
 import { useImagesStore } from '../stores/images'
 import { BRAND } from '../content'
 
-const emit = defineEmits<{ start: [] }>()
+const emit = defineEmits<{ start: []; startUpscale: [] }>()
 const images = useImagesStore()
 const { push } = useToast()
 const aboutOpen = ref(false)
 
-const confirmVisible = ref(false)
-const confirmReason = ref('')
-let confirmResolve: ((ok: boolean) => void) | null = null
-
-function askConfirm(reason: string): Promise<boolean> {
-  confirmReason.value = reason
-  confirmVisible.value = true
-  return new Promise((resolve) => {
-    confirmResolve = resolve
-  })
-}
-
-function settleConfirm(ok: boolean) {
-  confirmVisible.value = false
-  confirmResolve?.(ok)
-  confirmResolve = null
-}
+const confirm = useConfirmDialog()
+const { visible: confirmVisible, reason: confirmReason, ask: askConfirm, settle: settleConfirm } =
+  confirm
 
 const { importFiles } = useFileImport()
 
@@ -80,7 +68,7 @@ const quickActions = [
 
       <section class="mt-14 w-full max-w-3xl">
         <h2 class="mb-4 text-center text-sm font-medium tracking-wide text-slate-400">快速操作</h2>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <BaseCard
             v-for="action in quickActions"
             :key="action.label"
@@ -91,18 +79,26 @@ const quickActions = [
             <div class="mt-2 text-sm font-semibold text-slate-800">{{ action.label }}</div>
             <div class="mt-0.5 text-xs text-slate-400">{{ action.desc }}</div>
           </BaseCard>
+          <BaseCard
+            class="cursor-pointer p-4 ring-1 ring-brand-200 transition-all hover:-translate-y-0.5 hover:shadow-md"
+            @click="emit('startUpscale')"
+          >
+            <div class="text-2xl">🔍</div>
+            <div class="mt-2 text-sm font-semibold text-brand-700">专业高清放大</div>
+            <div class="mt-0.5 text-xs text-slate-400">2K/4K/8K/16K · Lanczos · 无AI</div>
+          </BaseCard>
         </div>
       </section>
     </main>
 
-    <AppDialog :open="confirmVisible" title="检测到超大图片" @close="settleConfirm(false)">
-      <p class="text-sm text-slate-600">{{ confirmReason }}</p>
-      <p class="mt-1 text-sm text-slate-500">继续处理可能占用较多内存。</p>
-      <div class="mt-5 flex justify-end gap-2">
-        <BaseButton variant="ghost" @click="settleConfirm(false)">取消</BaseButton>
-        <BaseButton @click="settleConfirm(true)">继续处理</BaseButton>
-      </div>
-    </AppDialog>
+    <ConfirmDialog
+      :open="confirmVisible"
+      title="检测到超大图片"
+      :reason="confirmReason"
+      hint="继续处理可能占用较多内存。"
+      confirm-text="继续处理"
+      @settle="settleConfirm"
+    />
 
     <AppDialog :open="aboutOpen" :title="BRAND.about.title" @close="aboutOpen = false">
       <p class="text-sm text-slate-600">{{ BRAND.about.body }}</p>

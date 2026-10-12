@@ -1,16 +1,19 @@
 {
   "name": "pixelforge",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "build:single": "vite build --config vite.config.single.ts",
+    "build:single": "vue-tsc --noEmit && vite build --config vite.config.single.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "check": "vue-tsc --noEmit && vitest run",
+    "fixtures": "node scripts/make-fixtures.mjs",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
